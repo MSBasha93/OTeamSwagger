@@ -1,0 +1,30 @@
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+dist/
+build/
+
+# Env files
+.env
+.env*.local
+!.env.example
+!.env.*.example
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Prisma
+backend/prisma/generated/
+
+# Next.js
+frontend/.next/
+frontend/out/
+
+# Docker
+docker-compose.override.yml

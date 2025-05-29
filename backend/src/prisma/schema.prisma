@@ -1,0 +1,183 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  firstName String?
+  lastName  String?
+  roles     Role[]   @default([CLIENT_SUB_USER]) // Default to a basic role
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  organizationId String?
+
+  ticketsCreated  Ticket[] @relation("CreatedBy")
+  ticketsAssigned Ticket[] @relation("AssignedToExpert") // For Experts
+  rcasAuthored    Rca[]
+
+  // For TDM managing Experts (simplified for now)
+  managedExperts User[] @relation("TDMToExperts")
+  manager        User?  @relation("TDMToExperts", fields: [managerId], references: [id])
+  managerId      String?
+
+  // For SDM managing Operation Admins
+  managedOpAdmins User[] @relation("SDMToOpAdmins")
+  sdm             User?  @relation("SDMToOpAdmins", fields: [sdmId], references: [id])
+  sdmId           String?
+
+  sessions ScreenConnectSessionLog[]
+
+  @@index([organizationId])
+  @@index([managerId])
+  @@index([sdmId])
+}
+
+model Organization {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  subscription SubscriptionPlan @default(BASIC) // Example: BASIC, PREMIUM
+  clientAdmin User[] // Client admin for this org
+  members     User[] // All users part of this org
+  tickets     Ticket[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Ticket {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  status      TicketStatus @default(OPEN)
+  priority    TicketPriority @default(MEDIUM)
+  sla         String? // SLA identifier (e.g., "standard", "premium-4hr")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  resolvedAt  DateTime?
+  escalatedAt DateTime?
+
+  createdBy      User         @relation("CreatedBy", fields: [createdById], references: [id])
+  createdById    String
+  assignedExpert User?        @relation("AssignedToExpert", fields: [assignedExpertId], references: [id])
+  assignedExpertId String?
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+
+  rca          Rca? // One-to-one with RCA
+  chatMessages ChatMessage[]
+  escalations  Escalation[]
+  sessionLogs  ScreenConnectSessionLog[]
+
+  // For proactive maintenance
+  isMaintenanceTicket Boolean @default(false)
+  scheduledMaintenanceTime DateTime?
+
+
+  @@index([createdById])
+  @@index([assignedExpertId])
+  @@index([organizationId])
+}
+
+model Rca {
+  id          String   @id @default(cuid())
+  ticket      Ticket   @relation(fields: [ticketId], references: [id])
+  ticketId    String   @unique // Each ticket has at most one RCA
+  content     String // Could be JSON or Markdown from Blad Form template
+  filePath    String?  // If stored as a file
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  authoredBy  User     @relation(fields: [authoredById], references: [id])
+  authoredById String
+
+  @@index([authoredById])
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  ticket    Ticket   @relation(fields: [ticketId], references: [id])
+  ticketId  String
+  senderId  String   // Can be User.id or "AI_AGENT"
+  senderType SenderType // USER or AI_AGENT
+  content   String
+  timestamp DateTime @default(now())
+
+  @@index([ticketId])
+}
+
+model Escalation {
+  id             String   @id @default(cuid())
+  ticket         Ticket   @relation(fields: [ticketId], references: [id])
+  ticketId       String
+  escalatedFromUserId String? // User ID of the person escalating
+  escalatedToUserId String?   // User ID of the person it's escalated to (e.g., TDM, SDM)
+  reason         String
+  escalatedAt    DateTime @default(now())
+  resolved       Boolean  @default(false)
+  resolvedAt     DateTime?
+
+  @@index([ticketId])
+}
+
+model ScreenConnectSessionLog {
+  id             String   @id @default(cuid())
+  ticket         Ticket   @relation(fields: [ticketId], references: [id])
+  ticketId       String
+  expert         User     @relation(fields: [expertId], references: [id])
+  expertId       String
+  sessionGuid    String   @unique // From ScreenConnect
+  startTime      DateTime
+  endTime        DateTime?
+  durationMinutes Int?     // Calculated
+  notes          String?
+
+  @@index([ticketId])
+  @@index([expertId])
+}
+
+enum Role {
+  CLIENT_ADMIN      // Full access for client org, manages sub-users, payments
+  CLIENT_SUB_USER   // Member of client org, can create/view tickets
+  EXPERT            // Technical expert
+  TDM               // Technical Delivery Manager (manages Experts)
+  PLATFORM_ADMIN    // Super admin for the platform
+  OPERATION_ADMIN   // Facilitates workflow, handles conflicts
+  SDM               // Service Delivery Manager (manages OpAdmins, escalations)
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  ON_HOLD
+  RESOLVED
+  CLOSED
+  ESCALATED_L2 // Example, to Expert
+  ESCALATED_L3 // Example, to TDM/SDM
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum SubscriptionPlan {
+  BASIC
+  STANDARD
+  PREMIUM
+  ENTERPRISE
+}
+
+enum SenderType {
+  USER
+  AI_AGENT
+}

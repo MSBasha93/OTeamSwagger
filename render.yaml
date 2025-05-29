@@ -1,0 +1,60 @@
+# OTeam Platform Blueprint for Render.com
+
+# This blueprint defines:
+# 1. A PostgreSQL database.
+# 2. A NestJS backend service.
+# 3. A Next.js frontend service.
+
+# Make sure to set appropriate environment variables in the Render dashboard.
+# For the backend, `DATABASE_URL` will be automatically injected by Render
+# if you link this database service to the backend service.
+# For the frontend, `NEXT_PUBLIC_API_URL` should point to your backend's public URL.
+
+databases:
+  - name: oteam-db
+    databaseName: oteam_db # This will be the actual database name
+    user: oteam_user      # This will be the actual database user
+    plan: free            # Or your desired plan (e.g., starter)
+    # PostgreSQL version can also be specified if needed, e.g., postgresqlVersion: 15
+
+services:
+  - type: web
+    name: oteam-backend
+    env: node
+    plan: free # Or your desired plan
+    rootDir: backend
+    buildCommand: npm install && npx prisma generate && npx prisma migrate deploy && npm run build
+    startCommand: npm run start:prod
+    healthCheckPath: /api/health # Add a health check endpoint in your backend
+    envVars:
+      - key: DATABASE_URL # This will be injected from the oteam-db service
+        fromDatabase:
+          name: oteam-db
+          property: connectionString
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001 # Default NestJS port, Render maps its internal port to 80/443
+      - key: JWT_SECRET
+        generateValue: true # Render can generate a secure secret for you
+      - key: JWT_EXPIRATION_TIME
+        value: 3600s # 1 hour
+
+  - type: web # Use 'web' for Next.js with SSR, or 'static' if it's a purely static export
+    name: oteam-frontend
+    env: node # Next.js needs a Node environment
+    plan: free # Or your desired plan
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    startCommand: npm run start # Assumes `next start` in package.json scripts
+    # If you use purely static export:
+    # env: static
+    # buildCommand: npm install && npm run build && npm run export # if `next export` is used
+    # staticPublishPath: out # The output directory for `next export`
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        # Set this to your backend's public URL on Render
+        # e.g., https://oteam-backend.onrender.com
+        value: https://your-backend-service-name.onrender.com # IMPORTANT: Update this
+      - key: NODE_ENV
+        value: production
