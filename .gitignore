@@ -28,3 +28,7 @@ frontend/out/
 
 # Docker
 docker-compose.override.yml
+
+#Basha Files
+generateProjectSnapshot.js
+project_snapshot.txt
