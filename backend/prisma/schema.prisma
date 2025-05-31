@@ -13,24 +13,27 @@ model User {
   password  String
   firstName String?
   lastName  String?
-  roles     Role[]   @default([CLIENT_SUB_USER]) // Default to a basic role
+  roles     Role[]   @default([CLIENT_SUB_USER])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Relations
-  organization   Organization? @relation(fields: [organizationId], references: [id])
+  // Relation for general organization membership
+  organization   Organization? @relation("OrganizationMembers", fields: [organizationId], references: [id])
   organizationId String?
 
+  // Relation if this user is a client admin for an organization
+  adminForOrganization Organization? @relation("ClientAdmins", fields: [clientAdminOrganizationId], references: [id])
+  clientAdminOrganizationId String?
+
+
   ticketsCreated  Ticket[] @relation("CreatedBy")
-  ticketsAssigned Ticket[] @relation("AssignedToExpert") // For Experts
+  ticketsAssigned Ticket[] @relation("AssignedToExpert")
   rcasAuthored    Rca[]
 
-  // For TDM managing Experts (simplified for now)
   managedExperts User[] @relation("TDMToExperts")
   manager        User?  @relation("TDMToExperts", fields: [managerId], references: [id])
   managerId      String?
 
-  // For SDM managing Operation Admins
   managedOpAdmins User[] @relation("SDMToOpAdmins")
   sdm             User?  @relation("SDMToOpAdmins", fields: [sdmId], references: [id])
   sdmId           String?
@@ -38,16 +41,21 @@ model User {
   sessions ScreenConnectSessionLog[]
 
   @@index([organizationId])
+  @@index([clientAdminOrganizationId]) // Add index for the new foreign key
   @@index([managerId])
   @@index([sdmId])
 }
 
+
 model Organization {
   id          String   @id @default(cuid())
   name        String   @unique
-  subscription SubscriptionPlan @default(BASIC) // Example: BASIC, PREMIUM
-  clientAdmin User[] // Client admin for this org
-  members     User[] // All users part of this org
+  subscription SubscriptionPlan @default(BASIC)
+
+  // Explicitly named relations
+  clientAdmins User[] @relation("ClientAdmins") // Users who are client admins of this org
+  members      User[] @relation("OrganizationMembers") // All users part of this org
+
   tickets     Ticket[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
