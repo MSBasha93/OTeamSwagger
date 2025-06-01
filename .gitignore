@@ -30,5 +30,5 @@ frontend/out/
 docker-compose.override.yml
 
 #Basha Files
-generateProjectSnapshot.js
-project_snapshot.txt
+./generateProjectSnapshot.js
+./project_snapshot.txt
